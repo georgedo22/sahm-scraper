@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "صهم — الكاشط المرئي للبيانات",
+  "version": "1.1.0",
+  "description": "أداة سحب بيانات مرئية: حدّد العناصر بالفأرة فتتعلّم الأداة النمط وتسحب كل العناصر المشابهة عبر الصفحات، مع حجب الإعلانات وقتل النوافذ المنبثقة.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "scripting",
+    "tabs",
+    "sidePanel",
+    "downloads",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "action": {
+    "default_title": "فتح لوحة صهم",
+    "default_icon": {
+      "16": "src/icons/icon16.png",
+      "32": "src/icons/icon32.png",
+      "48": "src/icons/icon48.png",
+      "128": "src/icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "src/icons/icon16.png",
+    "32": "src/icons/icon32.png",
+    "48": "src/icons/icon48.png",
+    "128": "src/icons/icon128.png"
+  },
+  "side_panel": {
+    "default_path": "src/ui/panel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "src/lib/selector.js",
+        "src/lib/extract.js",
+        "src/content/popups.js",
+        "src/content/picker.js",
+        "src/content/paginator.js",
+        "src/content/content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ads_block",
+        "enabled": false,
+        "path": "rules/ads.json"
+      }
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/popup-guard.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

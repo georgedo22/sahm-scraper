@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>صهم — الكاشط المرئي</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <span>صهم</span>
+        <span class="brand-sub">كاشط البيانات المرئي</span>
+      </div>
+      <div class="job-picker">
+        <label class="sr-only" for="jobSelect">المجموعة الحالية</label>
+        <select id="jobSelect" title="المجموعات المحفوظة"></select>
+        <button id="newJobBtn" class="icon-btn" type="button" title="مجموعة جديدة" aria-label="مجموعة جديدة">＋</button>
+        <button id="delJobBtn" class="icon-btn danger" type="button" title="حذف المجموعة" aria-label="حذف المجموعة">🗑</button>
+      </div>
+    </header>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <main>
+      <!-- 1. المصدر -->
+      <section class="card" aria-labelledby="sec1">
+        <h2 id="sec1"><span class="step">1</span> المصدر</h2>
+        <label class="field-label" for="jobName">اسم المجموعة</label>
+        <input id="jobName" type="text" placeholder="مثال: أفلام — القائمة الرئيسية" />
+
+        <label class="field-label" for="startUrl">رابط البداية</label>
+        <div class="row">
+          <input id="startUrl" type="text" dir="ltr" placeholder="https://example.com/movies?page=1" />
+          <button id="useCurrentBtn" class="btn ghost" type="button" title="استخدم رابط الصفحة المفتوحة">الحالية</button>
+        </div>
+        <p class="hint" id="tabHint"></p>
+      </section>
+
+      <!-- 2. الحقول -->
+      <section class="card" aria-labelledby="sec2">
+        <h2 id="sec2"><span class="step">2</span> حقول البيانات</h2>
+        <p class="hint">
+          اضغط «التقاط حقل» ثم انقر على العنصر الذي تريده في الصفحة (مثل عنوان الفيلم). كرّر لكل حقل.
+          صهم يحسب تلقائياً نوع الحقل والقاعدة المتكرّرة.
+        </p>
+        <div class="row">
+          <button id="pickFieldBtn" class="btn primary" type="button">التقاط حقل ●</button>
+          <button id="addFieldBtn" class="btn ghost" type="button">إضافة يدوياً</button>
+          <button id="stopPickBtn" class="btn ghost" type="button" hidden>إيقاف الالتقاط</button>
+        </div>
+
+        <div id="fieldsList" class="fields-list" aria-live="polite"></div>
+
+        <div id="learnedBox" class="learned" hidden>
+          <div class="learned-head">
+            <span>القاعدة المكتشفة</span>
+            <span class="badge" id="learnedCount"></span>
+          </div>
+          <code id="learnedSelector" class="code"></code>
+          <div class="row">
+            <button id="pickContainerBtn" class="btn ghost small" type="button">تغيير الصف يدوياً</button>
+            <button id="hiliteRowsBtn" class="btn ghost small" type="button">إبراز الصفوف</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. الصفحات المفصّلة -->
+      <section class="card" aria-labelledby="sec3">
+        <h2 id="sec3"><span class="step">3</span> صفحة كل عنصر (اختياري)</h2>
+        <p class="hint">
+          فعّله إذا كانت البيانات المطلوبة داخل صفحة العنصر نفسه. تلتقط رابط الدخول من صف
+          واحد، ثم تفتح صفحة عنصر وتلتقط حقولها — وسيدخل صهم إلى كل عنصر ويسحب ثم يعود.
+        </p>
+        <label class="check">
+          <input id="detailEnabled" type="checkbox" />
+          <span>الدخول إلى صفحة كل عنصر وسحب حقولها</span>
+        </label>
+
+        <div id="detailBody" hidden>
+          <div class="row">
+            <button id="pickLinkBtn" class="btn primary small" type="button">التقاط رابط الدخول ●</button>
+            <button id="gotoFirstBtn" class="btn ghost small" type="button">اذهب لأول عنصر</button>
+          </div>
+          <label class="field-label" for="detailLinkSelector">محدد رابط الدخول (داخل الصف)</label>
+          <input id="detailLinkSelector" type="text" dir="ltr" placeholder="a.poster" />
+
+          <div class="sep"></div>
+
+          <div class="row">
+            <button id="pickDetailBtn" class="btn primary small" type="button">التقاط حقول التفاصيل ●</button>
+            <button id="addDetailFieldBtn" class="btn ghost small" type="button">إضافة يدوياً</button>
+          </div>
+          <p class="hint">
+            افتح صفحة أي عنصر (زر «اذهب لأول عنصر» يساعدك) ثم التقط العنوان والمخرج والقصة…
+            ويُحفظ كل حقل باسمه مُسبَّقاً بـ <code>detail_</code> في الملف النهائي.
+          </p>
+          <div id="detailFieldsList" class="fields-list" aria-live="polite"></div>
+
+          <label class="field-label" for="detailMaxItems">أقصى عدد عناصر يدخلها في هذا السحب (0 = بلا حد)</label>
+          <input id="detailMaxItems" type="number" min="0" max="20000" value="0" />
+        </div>
+      </section>
+
+      <!-- 4. التنقل بين الصفحات -->
+      <section class="card" aria-labelledby="sec4">
+        <h2 id="sec4"><span class="step">4</span> التنقل بين الصفحات</h2>
+        <p class="hint">التقط زر «التالي» مرة واحدة، وسينتقل صهم تلقائياً حتى آخر صفحة.</p>
+        <div class="row">
+          <button id="pickNextBtn" class="btn primary" type="button">التقاط زر «التالي» ●</button>
+          <button id="clearNextBtn" class="btn ghost" type="button">مسح</button>
+        </div>
+        <label class="field-label" for="nextSelector">محدد زر «التالي» (CSS)</label>
+        <input id="nextSelector" type="text" dir="ltr" placeholder="a.next-page" />
+        <label class="field-label" for="maxPages">أقصى عدد صفحات</label>
+        <input id="maxPages" type="number" min="1" max="500" value="20" />
+      </section>
+
+      <!-- 5. الإعلانات والنوافذ -->
+      <section class="card" aria-labelledby="sec5">
+        <h2 id="sec5"><span class="step">5</span> الإعلانات والنوافذ المنبثقة</h2>
+        <label class="check"><input id="optKillPopups" type="checkbox" /> <span>إخفاء الطبقات المغطّية واستعادة التمرير</span></label>
+        <label class="check"><input id="optGuardPopups" type="checkbox" /> <span>منع فتح نوافذ جديدة أثناء السحب (pop-under)</span></label>
+        <label class="check"><input id="optBlockAds" type="checkbox" /> <span>حجب طلبات شبكات الإعلانات (DNR)</span></label>
+        <label class="check"><input id="optClickClose" type="checkbox" /> <span>محاولة النقر على أزرار الإغلاق (قد تنقل الصفحة)</span></label>
+        <label class="check"><input id="optAutoScroll" type="checkbox" /> <span>تمرير تلقائي لتحميل المحتوى الكسول</span></label>
+
+        <label class="field-label" for="delayMs">تأخير بين الصفحات (ملّي ثانية)</label>
+        <input id="delayMs" type="number" min="0" max="30000" step="100" value="1500" />
+      </section>
+
+      <!-- 6. التشغيل -->
+      <section class="card" aria-labelledby="sec6">
+        <h2 id="sec6"><span class="step">6</span> التشغيل</h2>
+        <div class="row">
+          <button id="probeBtn" class="btn ghost" type="button">اختبار على الصفحة الحالية</button>
+        </div>
+        <div class="row">
+          <button id="runBtn" class="btn primary grow" type="button">بدء السحب</button>
+          <button id="stopRunBtn" class="btn danger" type="button" hidden>إيقاف</button>
+        </div>
+        <div class="progress" role="progressbar" aria-labelledby="progressText">
+          <div id="progressBar"></div>
+        </div>
+        <p class="hint" id="progressText">جاهز.</p>
+        <div id="logBox" class="log" aria-live="polite"></div>
+      </section>
+
+      <!-- 7. النتائج -->
+      <section class="card" aria-labelledby="sec7">
+        <h2 id="sec7"><span class="step">7</span> النتائج</h2>
+        <div class="stats" id="stats"></div>
+        <div class="row wrap">
+          <button id="previewBtn" class="btn ghost small" type="button">عرض المعاينة</button>
+          <button id="exportCsvBtn" class="btn small" type="button">تصدير CSV</button>
+          <button id="exportJsonBtn" class="btn small" type="button">تصدير JSON</button>
+          <button id="copyJsonBtn" class="btn ghost small" type="button">نسخ JSON</button>
+          <button id="clearRowsBtn" class="btn ghost small danger" type="button">تفريغ البيانات</button>
+        </div>
+        <div class="preview-wrap" id="previewWrap"></div>
+      </section>
+    </main>
+
+    <script src="panel.js"></script>
+  </body>
+</html>

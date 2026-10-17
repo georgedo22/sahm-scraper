@@ -1,0 +1,575 @@
+/* ------------------------------------------------------------------
+ * صهم — لوحة التحكم الجانبية
+ * ------------------------------------------------------------------ */
+
+:root {
+  --bg: #0b1220;
+  --surface: #121a2b;
+  --surface-2: #172136;
+  --border: #26324b;
+  --border-soft: #1c2740;
+  --text: #e7eef9;
+  --muted: #93a4bd;
+  --accent: #34d399;
+  --accent-ink: #04241a;
+  --info: #38bdf8;
+  --danger: #f87171;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 6px 20px rgba(2, 6, 23, 0.35);
+  --mono: ui-monospace, Consolas, "Courier New", monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --surface-2: #eef2f9;
+    --border: #d7dfec;
+    --border-soft: #e5eaf3;
+    --text: #16233a;
+    --muted: #5b6b85;
+    --accent: #0f9d6e;
+    --accent-ink: #ffffff;
+    --info: #0284c7;
+    --danger: #c2410c;
+    --shadow: 0 6px 18px rgba(15, 23, 42, 0.1);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.7 system-ui, "Segoe UI", Tahoma, "Noto Naskh Arabic", sans-serif;
+  direction: rtl;
+  min-width: 300px;
+  padding-bottom: 24px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ------------------------------- الشريط العلوي */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.brand-sub {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.logo {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, var(--accent), var(--info));
+  flex: 0 0 auto;
+}
+
+.job-picker {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.job-picker select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ------------------------------- عناصر الإدخال */
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 7px 9px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+input[dir="ltr"],
+code,
+.code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-align: left;
+  direction: ltr;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.field-label {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 7px 0;
+  cursor: pointer;
+}
+
+.check span {
+  flex: 1 1 auto;
+}
+
+/* ------------------------------- الأزرار */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn.danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.btn.small {
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.btn.grow {
+  flex: 1 1 auto;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.icon-btn:hover {
+  border-color: var(--accent);
+}
+
+.icon-btn.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn.primary.picking {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ------------------------------- البطاقات */
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 11px 12px 13px;
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.hint {
+  margin: 6px 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.hint code {
+  font-size: 11px;
+  direction: ltr;
+  display: inline-block;
+}
+
+/* فاصل داخلي بين مجموعتي حقول في البطاقة نفسها */
+.sep {
+  height: 1px;
+  margin: 12px 0 10px;
+  background: var(--border);
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+.row > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ------------------------------- الحقول الملتقطة */
+.fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.empty {
+  padding: 14px 10px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.field {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px;
+  background: var(--surface-2);
+}
+
+.field-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.field-head .f-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.field-head select {
+  width: 92px;
+  flex: 0 0 auto;
+}
+
+.field .f-sel {
+  margin-top: 2px;
+}
+
+.field-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.field-foot .sample {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.warn {
+  color: #fbbf24;
+}
+
+.missing {
+  color: var(--danger);
+}
+
+/* ------------------------------- القاعدة المكتشفة */
+.learned {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.learned-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.16);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.code {
+  display: block;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--info);
+}
+
+/* ------------------------------- التشغيل والسجل */
+.progress {
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+}
+
+.progress > div {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.log {
+  margin-top: 8px;
+  max-height: 130px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.65;
+  direction: rtl;
+  text-align: right;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.log:empty::before {
+  content: "لا سجل بعد.";
+  color: var(--muted);
+}
+
+/* ------------------------------- النتائج */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.stat {
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  font-size: 11.5px;
+}
+
+.stat b {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.preview-wrap {
+  margin-top: 10px;
+  overflow: auto;
+  max-height: 300px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.preview-wrap:empty {
+  display: none;
+}
+
+table.preview {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 11.5px;
+}
+
+table.preview th,
+table.preview td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: right;
+  vertical-align: top;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+table.preview thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  font-weight: 700;
+  color: var(--text);
+}
+
+table.preview tbody tr:nth-child(even) {
+  background: rgba(148, 163, 184, 0.06);
+}
+
+table.preview td.ltr {
+  direction: ltr;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+/* ------------------------------- التنبيه العائم */
+.toast {
+  position: fixed;
+  inset-inline: 10px;
+  bottom: 12px;
+  z-index: 40;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.error {
+  border-color: var(--danger);
+}
