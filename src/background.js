@@ -273,6 +273,7 @@ async function readRows(jobId, limit) {
 // ------------------------------------------------------------------
 const CONTENT_FILES = [
   'src/lib/selector.js',
+  'src/lib/media.js',
   'src/lib/extract.js',
   'src/content/popups.js',
   'src/content/picker.js',
@@ -291,6 +292,240 @@ async function ensureContent(tabId) {
   const retry = await sendToTab(tabId, { type: 'PING', payload: {} }, 4000);
   return !!(retry && retry.ok);
 }
+
+// ------------------------------------------------------------------
+// المسح الشامل للوسائط عبر كل إطارات الصفحة (iframe / embed / video)
+// سكربتات المحتوى الرئيسية لا ترى داخل الإطارات العابرة للأصول،
+// لذلك نحقن دالة مسح مستقلة في كل إطار all_frames ثم نجمع النتائج.
+// ------------------------------------------------------------------
+const AD_HOST_RE = /doubleclick|googlesyndication|adservice|adnxs|popads|propellerads|revcontent|mgid|ezoic|adthrive|\/ads?\//i;
+
+/** يبني رابط embed من رابط مشاهدة لمزود معروف — يُستعمل داخل كل إطار. */
+function buildEmbedUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    if (/youtube\.com$/.test(host)) {
+      const id = parsed.searchParams.get('v') || (parts[0] === 'embed' || parts[0] === 'v' || parts[0] === 'shorts' ? parts[1] : '');
+      if (id) return 'https://www.youtube.com/embed/' + id;
+    }
+    if (host === 'youtu.be' && parts[0]) return 'https://www.youtube.com/embed/' + parts[0];
+    if (/vimeo\.com$/.test(host) && parts[0]) return 'https://player.vimeo.com/video/' + parts[0];
+    if (/dailymotion\.com$/.test(host)) {
+      const index = parts.indexOf('video');
+      if (index !== -1 && parts[index + 1]) return 'https://www.dailymotion.com/embed/video/' + parts[index + 1];
+    }
+    if (/ok\.ru$/.test(host) && parts[0] === 'video' && parts[1]) {
+      return 'https://ok.ru/videoembed/' + String(parts[1]).split('.')[0];
+    }
+    if (/streamable\.com$/.test(host) && parts[0]) return 'https://streamable.com/e/' + parts[0];
+    if (/vidb(om|oom)\./.test(host)) return url.replace('/f/', '/e/');
+  } catch (e) {
+    /* رابط غير قابل للتحليل */
+  }
+  return '';
+}
+
+/** تُسلسَل إلى كل إطار وتعمل هناك — لا تعتمد على SCX إطلاقاً. */
+function collectMediaAllFrames() {
+  const EMBED_SELECTOR = [
+    'iframe', 'embed', 'object[data]', 'video[src]', 'video > source[src]',
+    'audio[src]', 'iframe[data-src]', 'iframe[data-original]', 'iframe[data-lazy-src]',
+    'embed[data-src]', '.player iframe', '.player[data-src]'
+  ].join(',');
+  const SRC_ATTRS = ['src', 'data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-embed', 'data-video'];
+
+  const PROVIDERS = [
+    [/youtube\.com|youtu\.be/i, 'YouTube'],
+    [/vimeo\.com/i, 'Vimeo'],
+    [/dailymotion/i, 'Dailymotion'],
+    [/streamtape/i, 'StreamTape'],
+    [/streamable\.com/i, 'Streamable'],
+    [/facebook\.com|fb\.watch/i, 'Facebook'],
+    [/\bok\.ru\b/i, 'OK.ru'],
+    [/\bvk\.(com|ru)\b/i, 'VK'],
+    [/vidb(om|oom)\./i, 'Vidbom'],
+    [/upcloud|move365|rct365/i, 'Upcloud'],
+    [/nine.?share|90pvt/i, 'NineShare'],
+    [/jwplayer|jwpltx|jwplatform/i, 'JWPlayer']
+  ];
+
+  const norm = (value) => String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+
+  function absoluteUrl(value) {
+    const raw = norm(value);
+    if (!raw) return '';
+    if (/^(data|blob|javascript):/i.test(raw)) return '';
+    try {
+      return new URL(raw, location.href).href;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function providerName(url) {
+    for (const pair of PROVIDERS) if (pair[0].test(url)) return pair[1];
+    try {
+      return new URL(url).hostname;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /** يبني رابط embed من رابط مشاهدة لمزود معروف. */
+  function embedFor(url) {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      if (/youtube\.com$/.test(host)) {
+        const id = parsed.searchParams.get('v') || (parts[0] === 'embed' || parts[0] === 'v' || parts[0] === 'shorts' ? parts[1] : '');
+        if (id) return 'https://www.youtube.com/embed/' + id;
+      }
+      if (host === 'youtu.be' && parts[0]) return 'https://www.youtube.com/embed/' + parts[0];
+      if (/vimeo\.com$/.test(host) && parts[0]) return 'https://player.vimeo.com/video/' + parts[0];
+      if (/dailymotion\.com$/.test(host)) {
+        const index = parts.indexOf('video');
+        if (index !== -1 && parts[index + 1]) return 'https://www.dailymotion.com/embed/video/' + parts[index + 1];
+      }
+      if (/ok\.ru$/.test(host) && parts[0] === 'video' && parts[1]) {
+        return 'https://ok.ru/videoembed/' + String(parts[1]).split('.')[0];
+      }
+      if (/streamable\.com$/.test(host) && parts[0]) return 'https://streamable.com/e/' + parts[0];
+      if (/vidb(om|oom)\./.test(host)) return url.replace('/f/', '/e/');
+    } catch (e) {
+      /* رابط غير قابل للتحليل */
+    }
+    return '';
+  }
+
+  function decodeDataAttrs(el) {
+    const out = [];
+    if (!el.attributes) return out;
+    for (const attribute of Array.from(el.attributes)) {
+      if (!/^data-/i.test(attribute.name)) continue;
+      const candidates = [attribute.value || ''];
+      try {
+        const value = attribute.value || '';
+        if (/^[A-Za-z0-9+/=%]{20,}$/.test(value)) {
+          const decoded = atob(value.replace(/[^A-Za-z0-9+/=]/g, ''));
+          if (/https?:/i.test(decoded)) candidates.push(decoded);
+        }
+      } catch (e) {
+        /* ليس base64 */
+      }
+      for (const candidate of candidates) {
+        const match = String(candidate).match(/https?:\/\/[^\s"'<>\\]+/i);
+        if (match) out.push(match[0]);
+      }
+    }
+    return out;
+  }
+
+  function mediaSourceOf(el) {
+    const tag = el.tagName.toUpperCase();
+    if (tag === 'OBJECT') {
+      const data = el.getAttribute('data');
+      if (data) return absoluteUrl(data);
+      const param = el.querySelector && el.querySelector('param[name="movie"]');
+      if (param && param.getAttribute('value')) return absoluteUrl(param.getAttribute('value'));
+    }
+    for (const attr of SRC_ATTRS) {
+      const value = el.getAttribute && el.getAttribute(attr);
+      if (value && absoluteUrl(value)) return absoluteUrl(value);
+    }
+    if (tag === 'VIDEO' && el.querySelector) {
+      const source = el.querySelector('source[src]');
+      if (source) return absoluteUrl(source.getAttribute('src'));
+    }
+    const srcdoc = el.getAttribute && el.getAttribute('srcdoc');
+    if (srcdoc) {
+      const match = String(srcdoc).match(/(?:src|data-src)\s*=\s*["']([^"'<>]+)["']/i);
+      if (match) return absoluteUrl(match[1]);
+    }
+    for (const url of decodeDataAttrs(el)) {
+      if (/^https?:/i.test(url)) return url;
+    }
+    return '';
+  }
+
+  function isAdSrc(url) {
+    return /doubleclick|googlesyndication|adservice|adnxs|popads|propellerads|revcontent|mgid|ezoic|adthrive|\/ads?\//i.test(url);
+  }
+
+  const found = [];
+  let nodes = [];
+  try {
+    nodes = Array.from(document.querySelectorAll(EMBED_SELECTOR));
+  } catch (e) {
+    nodes = [];
+  }
+  for (const el of nodes) {
+    const src = mediaSourceOf(el);
+    if (!src || isAdSrc(src)) continue;
+    found.push({
+      tag: el.tagName.toLowerCase(),
+      src: src,
+      provider: providerName(src),
+      embed: embedFor(src),
+      id: el.id || '',
+      name: el.getAttribute('name') || '',
+      classes: (el.className && typeof el.className === 'string' ? el.className : '').slice(0, 120),
+      title: el.getAttribute('title') || '',
+      width: parseInt(el.getAttribute('width') || '0', 10) || 0,
+      height: parseInt(el.getAttribute('height') || '0', 10) || 0,
+      top: !!el.ownerDocument && el.ownerDocument === window.top.document
+    });
+  }
+  return { href: location.href, isTop: window === window.top, medias: found };
+}
+
+/** يمسح كل إطارات التبويب ويجمع الوسائط مع تمييز المتاح منها للقراءة. */
+async function scanTabMedia(tabId) {
+  let results = [];
+  try {
+    results = await chrome.scripting.executeScript({
+      target: { tabId: tabId, allFrames: true },
+      func: collectMediaAllFrames
+    });
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+  const frames = [];
+  const medias = [];
+  let topHref = '';
+  for (const injection of results || []) {
+    const value = injection && injection.result;
+    if (!value || !Array.isArray(value.medias)) continue;
+    if (value.isTop) topHref = value.href;
+    frames.push({ href: value.href, isTop: !!value.isTop, count: value.medias.length });
+    for (const media of value.medias) {
+      const item = Object.assign({}, media);
+      // الإطار الرئيسي يُقرأ دائماً؛ أما الفرعي فمتاح إن كان نفس الأصل
+      item.accessible = !!item.top || sameOrigin(value.href, topHref);
+      medias.push(item);
+    }
+  }
+  const unique = [];
+  const seen = new Set();
+  for (const media of medias) {
+    const key = media.src;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(media);
+  }
+  return { ok: true, url: topHref, frames: frames, medias: unique };
+}
+
+function sameOrigin(a, b) {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch (e) {
+    return false;
+  }
+}
+
 
 // ------------------------------------------------------------------
 // الإعدادات العامة

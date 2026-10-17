@@ -9,34 +9,97 @@
   const SC = (globalThis.SCX = globalThis.SCX || {});
   if (SC.ex) return;
   const S = SC.sel;
+  const M = SC.media; // اختياري: يعمل الاستخراج بدونه، لكن حقول الوسيط تحتاجه
 
   // ------------------------------------------------------------------
   // استخراج القيم
   // ------------------------------------------------------------------
 
+  /** هل المحدد يستخدم سلسلة الإطارات >>>؟ لا يعمل إلا في سكربتات all_frames. */
+  function isChainSelector(selector) {
+    return typeof selector === 'string' && selector.indexOf('>>>') !== -1;
+  }
+
+  /** يبسّط محدد السلسلة إلى جزئه الأخير ليعمل داخل الإطار نفسه. */
+  function chainTail(selector) {
+    const parts = String(selector).split('>>>');
+    return (parts[parts.length - 1] || '').trim();
+  }
+
+  /**
+   * يحدّد كل العناصر المطابقة لمحدد الحقل داخل الجذر، مع دعم:
+   *   - محدد عادي داخل نفس المستند.
+   *   - سلسلة إطارات `a >>> b` عندما نكون نحن داخل الإطار المناسب
+   *     (تتحقق الخلفية من تطابق src للإطار الأول قبل الطلب).
+   */
+  function queryNodes(root, selector) {
+    if (!root || !selector) return [];
+    try {
+      if (isChainSelector(selector)) {
+        if (typeof root.querySelectorAll !== 'function') return [];
+        const parts = String(selector).split('>>>').map((part) => part.trim()).filter(Boolean);
+        let nodes = [root];
+        for (const part of parts) {
+          const next = [];
+          for (const node of nodes) {
+            if (!node || typeof node.querySelectorAll !== 'function') continue;
+            for (const found of node.querySelectorAll(part)) {
+              if (found.tagName === 'IFRAME' || found.tagName === 'FRAME') {
+                let doc = null;
+                try {
+                  doc = found.contentDocument;
+                } catch (e) {
+                  doc = null;
+                }
+                if (doc) next.push(doc);
+              } else {
+                next.push(found);
+              }
+            }
+          }
+          nodes = next;
+          if (!nodes.length) break;
+        }
+        return nodes;
+      }
+      return Array.from(root.querySelectorAll(selector));
+    } catch (e) {
+      return [];
+    }
+  }
+
   /** يحدّد أول عنصر يطابق محدد الحقل داخل الصف. */
   function firstNode(row, field) {
     if (!field.selector) return null;
-    try {
-      return row.querySelector(field.selector) || null;
-    } catch (e) {
-      return null;
-    }
+    const nodes = queryNodes(row, field.selector);
+    return nodes.length ? nodes[0] : null;
   }
 
   function allNodes(row, field) {
     if (!field.selector) return [];
-    try {
-      return Array.from(row.querySelectorAll(field.selector));
-    } catch (e) {
-      return [];
-    }
+    return queryNodes(row, field.selector);
   }
 
   function rawValue(el, field) {
     if (!el) return '';
     const type = field.type || 'text';
     const attr = field.attr || '';
+
+    // ---- حقول الوسائط: iframe / embed / object / video ----
+    if (type === 'media' || type === 'embed') {
+      const src = M ? M.mediaSourceOf(el) : (el.getAttribute && S.absoluteUrl(el.getAttribute('src') || ''));
+      if (!src) return '';
+      if (type === 'embed') {
+        const built = M ? M.embedUrlFor(src) : '';
+        return built || src;
+      }
+      return src;
+    }
+
+    if (type === 'provider') {
+      const src = M ? M.mediaSourceOf(el) : (el.getAttribute && el.getAttribute('src')) || '';
+      return src && M ? M.providerName(src) : '';
+    }
 
     if (type === 'html') return String(el.innerHTML || '').trim();
 
@@ -115,7 +178,36 @@
       }
       return parts.join(field.separator || ' | ');
     }
-    return rawValue(firstNode(row, field), field);
+    // حقول الوسائط: إن لم يوجد وسم محدد في الصف، نبحث عن أي iframe/embed/video
+    // داخل الصف — هذا هو الاستخدام الشائع لسحب روابط المشاهدة.
+    if ((field.type === 'media' || field.type === 'embed' || field.type === 'provider') && !field.selector) {
+      return mediaFromScope(row, field);
+    }
+    let value = rawValue(firstNode(row, field), field);
+    if (!value && (field.type === 'media' || field.type === 'embed')) {
+      value = mediaFromScope(row, field);
+    }
+    return value;
+  }
+
+  /** يمسح حاوية كاملة بحثاً عن أول/كل وسط فيها ويخرج قيمة الحقل. */
+  function mediaFromScope(scope, field) {
+    if (!scope || typeof scope.querySelectorAll !== 'function' || !M) return '';
+    let nodes = [];
+    try {
+      nodes = Array.from(scope.querySelectorAll(M.EMBED_SELECTOR));
+    } catch (e) {
+      nodes = [];
+    }
+    if (scope.matches && scope.matches('iframe,embed,object[data],video[src]')) nodes.unshift(scope);
+    const values = [];
+    for (const node of nodes) {
+      const value = rawValue(node, field);
+      if (value && values.indexOf(value) === -1) values.push(value);
+    }
+    if (!values.length) return '';
+    if (field.type === 'list') return values.join(field.separator || ' | ');
+    return values[0];
   }
 
   // ------------------------------------------------------------------
@@ -194,6 +286,10 @@
     // في وضع الصفحات المفصّلة نُعيد روابط الدخول بنفس ترتيب الصفوف،
     // فيبقى الاقتران بين كل صف وهدفه مضموناً بلا مطابقة لاحقة.
     if (job.detail && job.detail.enabled) result.links = rowLinks(job, rows);
+    // كشف الوسائط لكل صف — يُستعمل لملء الحقول التلقائية وللمسح الشامل.
+    if ((job.options && job.options.autoMediaFields) || (job.detectMedia && job.detectMedia.perRow)) {
+      result.medias = rowMedias(job, rows);
+    }
     return result;
   }
 
@@ -219,11 +315,8 @@
     for (const row of rows) {
       let el = null;
       if (selector) {
-        try {
-          el = row.querySelector(selector);
-        } catch (e) {
-          el = null;
-        }
+        const nodes = queryNodes(row, selector);
+        el = nodes.length ? nodes[0] : null;
         // قد يكون المحدد الملتقط هو الصف نفسه (بطاقة كاملة قابلة للنقر)
         if (!el && row.matches) {
           try {
@@ -244,6 +337,42 @@
       });
     }
     return out;
+  }
+
+  /**
+   * كشف الوسائط داخل كل صف من أسفل إلى أعلى — يُستخدم عندما تكون
+   * روابط المشاهدة مخفية خلف زر أو طبقة لا تظهر إلا عند النقر.
+   * يعيد مصفوفة بعدد الصفوف نفسها: [{ src, provider, embed }, ...]
+   */
+  function rowMedias(job, rows) {
+    const list = rows || findRows(job);
+    const out = [];
+    for (const row of list) {
+      const record = { src: '', provider: '', embed: '' };
+      if (M) {
+        const src = mediaFromScope(row, { type: 'media' });
+        if (src) {
+          record.src = src;
+          record.provider = M.providerName(src);
+          record.embed = M.embedUrlFor(src) || src;
+        }
+      }
+      out.push(record);
+    }
+    return out;
+  }
+
+  /**
+   * يبسط محددات الحقول التي تستخدم سلسلة الإطارات (>>>) لتعمل داخل
+   * الإطار الفرعي نفسه: نُبقي الجزء الذي يلي أول إطار في السلسلة.
+   */
+  function localizeFields(fields) {
+    return (fields || []).map((field) => {
+      if (field && field.selector && isChainSelector(field.selector)) {
+        return Object.assign({}, field, { selector: chainTail(field.selector), path: '' });
+      }
+      return field;
+    });
   }
 
   /**
@@ -301,7 +430,7 @@
 
   /** يقرأ حقول التفاصيل من الصفحة الحالية وفق خطة التعلّم. */
   function extractDetail(detail) {
-    const fields = (detail && detail.fields) || [];
+    const fields = localizeFields((detail && detail.fields) || []);
     const values = {};
     let container = null;
 
@@ -319,20 +448,15 @@
       // (valueOf تبحث داخل الصف عن محدد الحقل، وهذا صحيح في صفوف القائمة
       //  لا هنا — لأن حقل التفاصيل هو الهدف لا حاوٍ له.)
       let nodes = [];
-      if (container && field.selector) {
-        try {
-          nodes = Array.from(container.querySelectorAll(field.selector));
-        } catch (e) {
-          nodes = [];
-        }
-      }
-      if (!nodes.length && field.path) {
-        try {
-          const node = document.querySelector(field.path);
-          if (node) nodes = [node];
-        } catch (e) {
-          nodes = [];
-        }
+      if (container && field.selector) nodes = queryNodes(container, field.selector);
+      if (!nodes.length && field.path) nodes = queryNodes(document, field.path);
+
+      // حقول الوسائط بلا محدد أو بمحدد لم يطابق: نبحث عن أي وسط في الحاوية
+      if (!nodes.length && (field.type === 'media' || field.type === 'embed' || field.type === 'provider')) {
+        const src = mediaFromScope(container || document.body, field);
+        values[field.name] = src || '';
+        if (src) found++;
+        continue;
       }
 
       const parts = nodes.map((node) => rawValue(node, field)).filter((value) => value !== '');
@@ -353,15 +477,21 @@
   /** تخمين نوع البيانات من العنصر الذي نُقر عليه. */
   function guessType(el) {
     const tag = el.tagName.toLowerCase();
+    if (tag === 'iframe' || tag === 'embed' || tag === 'object') {
+      return { type: 'media' };
+    }
+    if (tag === 'video' || tag === 'audio') {
+      return { type: 'media' };
+    }
     if (tag === 'img' || tag === 'picture' || tag === 'source' || tag === 'svg') {
       return { type: 'image' };
     }
     if (tag === 'a' && el.getAttribute('href')) return { type: 'href' };
     if (tag === 'time' || el.hasAttribute('datetime')) return { type: 'datetime' };
-    if (tag === 'video' && el.getAttribute('src')) return { type: 'src', attr: 'src' };
 
     const text = S.norm(el.textContent);
     if (!text) {
+      if (el.querySelector && el.querySelector('iframe,embed,object[data],video[src]')) return { type: 'media' };
       if (el.querySelector('img, picture source')) return { type: 'image' };
       const anchor = el.querySelector('a[href]');
       if (anchor) return { type: 'href' };
@@ -476,11 +606,8 @@
     for (const field of fields) {
       let found = 0;
       for (const item of finalItems) {
-        try {
-          if (field.selector && item.querySelector(field.selector)) found++;
-        } catch (e) {
-          /* محدد غير صالح */
-        }
+        if (field.selector && firstNode(item, field)) found++;
+        else if (!field.selector && (field.type === 'media' || field.type === 'embed') && mediaFromScope(item, field)) found++;
       }
       field.missing = Math.max(0, finalItems.length - found);
     }
@@ -507,6 +634,11 @@
     extractPage: extractPage,
     valueOf: valueOf,
     firstNode: firstNode,
+    queryNodes: queryNodes,
+    mediaFromScope: mediaFromScope,
+    rowMedias: rowMedias,
+    localizeFields: localizeFields,
+    isChainSelector: isChainSelector,
     guessType: guessType,
     analyze: analyze,
     analyzeDetail: analyzeDetail,

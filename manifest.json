@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "صهم — الكاشط المرئي للبيانات",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "أداة سحب بيانات مرئية: حدّد العناصر بالفأرة فتتعلّم الأداة النمط وتسحب كل العناصر المشابهة عبر الصفحات، مع حجب الإعلانات وقتل النوافذ المنبثقة.",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -40,6 +40,7 @@
       "matches": ["<all_urls>"],
       "js": [
         "src/lib/selector.js",
+        "src/lib/media.js",
         "src/lib/extract.js",
         "src/content/popups.js",
         "src/content/picker.js",
